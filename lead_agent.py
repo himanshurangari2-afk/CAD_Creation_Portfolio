@@ -3,12 +3,11 @@ import argparse
 import csv
 import os
 import re
+import smtplib
 from dataclasses import dataclass, asdict
 from email.message import EmailMessage
 from typing import List, Dict
 from urllib.parse import quote_plus
-import smtplib
-
 
 RISK_WORDS = {
     "manufacturing", "fabrication", "mechanical", "machining", "architectural",
@@ -16,7 +15,6 @@ RISK_WORDS = {
     "tooling", "engineering", "design", "cnc", "cad", "3d", "drawing",
     "drafting", "builder", "structural"
 }
-
 
 @dataclass
 class Lead:
@@ -132,7 +130,8 @@ def build_message(lead: Dict[str, str]) -> str:
 def load_csv(path: str) -> List[Dict[str, str]]:
     with open(path, newline='', encoding='utf-8') as csvfile:
         reader = csv.DictReader(csvfile)
-        return [dict(row) for row in reader]
+        rows = list(reader)
+        return rows
 
 
 def generate_leads(rows: List[Dict[str, str]]) -> List[Lead]:
@@ -173,8 +172,6 @@ def write_output(path: str, leads: List[Lead]) -> None:
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
         for lead in leads:
-            row = asdict(lead)
-            row.pop('whatsapp_link', None)
             writer.writerow({
                 'company_name': lead.company_name,
                 'industry': lead.industry,
@@ -233,8 +230,8 @@ def send_bulk_emails(leads: List[Lead], dry_run: bool = True) -> None:
 
 def main():
     parser = argparse.ArgumentParser(description='CAD lead generation assistant')
-    parser.add_argument('--input', required=True, help='Input CSV file with leads')
-    parser.add_argument('--output', default='approved_leads.csv', help='Output CSV file')
+    parser.add_argument('--input', required=True, help='CSV file with business leads')
+    parser.add_argument('--output', default='approved_leads.csv', help='Output CSV file for reviewed leads')
     parser.add_argument('--send-email', action='store_true', help='Send approved emails using SMTP')
     args = parser.parse_args()
 
@@ -244,7 +241,7 @@ def main():
 
     qualified = [lead for lead in leads if lead.status == 'qualified']
     print(f"Loaded {len(rows)} leads; {len(qualified)} qualified for outreach.")
-    print(f"Output generated: {args.output}")
+    print(f"Output saved to {args.output}")
 
     if args.send_email:
         send_bulk_emails(leads, dry_run=False)
